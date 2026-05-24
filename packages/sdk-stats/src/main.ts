@@ -6,7 +6,6 @@
  */
 
 import { Observer } from "./client.js";
-import { MockAdapter } from "./adapters/mock.js";
 import { FootballAdapter } from "./adapters/football.js";
 
 const args = process.argv.slice(2);
@@ -16,15 +15,17 @@ function getArg(name: string, fallback: string): string {
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : fallback;
 }
 
-const source = getArg("source", "mock");
+const source = getArg("source", "");
 const port = parseInt(getArg("port", "8765"), 10);
 const fps = parseInt(getArg("fps", "5"), 10);
 const ipfsInterval = parseInt(getArg("ipfs-interval", "30000"), 10);
 
-// Pick adapter based on source
-const adapter = source === "mock"
-  ? new MockAdapter()
-  : new FootballAdapter();
+if (!source) {
+  console.error("[observer] --source is required (video file, RTSP URL, or HLS URL)");
+  process.exit(1);
+}
+
+const adapter = new FootballAdapter();
 
 const observer = new Observer({
   adapter,
@@ -44,7 +45,8 @@ process.on("SIGTERM", async () => {
   process.exit(0);
 });
 
-console.log(`[observer] starting with ${source === "mock" ? "MockAdapter" : "FootballAdapter"}`);
+console.log(`[observer] starting FootballAdapter`);
+console.log(`[observer] source: ${source}`);
 console.log(`[observer] WebSocket on ws://localhost:${port}`);
 console.log(`[observer] FPS: ${fps}, IPFS interval: ${ipfsInterval}ms`);
 
