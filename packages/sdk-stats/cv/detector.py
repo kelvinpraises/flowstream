@@ -92,27 +92,32 @@ def run(source: str, fps: float):
 
     slicer = sv.InferenceSlicer(
         callback=ball_callback,
-        overlap_filter_strategy=sv.OverlapFilter.NONE,
         slice_wh=(640, 640),
     )
 
     # Team classifier — collect initial crops from first pass
-    print(json.dumps({"status": "calibrating", "message": "Collecting player crops for team classification..."}), flush=True)
-    frame_gen_init = sv.get_video_frames_generator(source_path=source, stride=60)
-    crops = []
-    for frame in frame_gen_init:
-        result = player_model(frame, imgsz=1280, verbose=False)[0]
-        detections = sv.Detections.from_ultralytics(result)
-        players = detections[detections.class_id == PLAYER_CLASS_ID]
-        crops += [sv.crop_image(frame, xyxy) for xyxy in players.xyxy]
-        if len(crops) >= 100:
-            break
+    # This is heavy (SigLIP + UMAP + KMeans) so it's optional
+    team_classifier = None
+    try:
+        print(json.dumps({"status": "calibrating", "message": "Collecting player crops for team classification..."}), flush=True)
+        frame_gen_init = sv.get_video_frames_generator(source_path=source, stride=60)
+        crops = []
+        for frame in frame_gen_init:
+            result = player_model(frame, imgsz=1280, verbose=False)[0]
+            detections = sv.Detections.from_ultralytics(result)
+            players_det = detections[detections.class_id == PLAYER_CLASS_ID]
+            crops += [sv.crop_image(frame, xyxy) for xyxy in players_det.xyxy]
+            if len(crops) >= 50:
+                break
 
-    team_classifier = TeamClassifier(device=device)
-    if crops:
-        team_classifier.fit(crops)
-
-    print(json.dumps({"status": "ready", "message": f"Team classifier trained on {len(crops)} crops. Starting detection."}), flush=True)
+        if crops:
+            team_classifier = TeamClassifier(device=device)
+            team_classifier.fit(crops)
+            print(json.dumps({"status": "ready", "message": f"Team classifier trained on {len(crops)} crops."}), flush=True)
+        else:
+            print(json.dumps({"status": "ready", "message": "No crops found, skipping team classification."}), flush=True)
+    except Exception as e:
+        print(json.dumps({"status": "ready", "message": f"Team classification unavailable: {e}. Continuing without it."}), flush=True)
 
     # Main frame loop
     frame_gen = sv.get_video_frames_generator(source_path=source)
@@ -144,7 +149,7 @@ def run(source: str, fps: float):
 
         players = detections[detections.class_id == PLAYER_CLASS_ID]
         player_crops = [sv.crop_image(frame, xyxy) for xyxy in players.xyxy]
-        players_team_id = team_classifier.predict(player_crops) if player_crops else np.array([])
+        players_team_id = team_classifier.predict(player_crops) if (team_classifier and player_crops) else np.array([])
 
         # --- Ball detection ---
         ball_detections = slicer(frame).with_nms(threshold=0.1)
