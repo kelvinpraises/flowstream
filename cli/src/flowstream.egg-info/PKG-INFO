@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: flowstream
+Version: 0.1.0
+Summary: FlowStream CLI — live prediction market on Arc
+Requires-Python: >=3.11
+Requires-Dist: typer[all]>=0.9
+Requires-Dist: rich>=13
+Requires-Dist: web3<8,>=6
+Requires-Dist: cryptography>=41
+Requires-Dist: websockets>=12

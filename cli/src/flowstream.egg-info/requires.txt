@@ -1,0 +1,5 @@
+typer[all]>=0.9
+rich>=13
+web3<8,>=6
+cryptography>=41
+websockets>=12
