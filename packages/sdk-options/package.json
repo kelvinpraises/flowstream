@@ -1,0 +1,34 @@
+{
+  "name": "@flowstream/sdk-options",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@flowstream/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "optionalDependencies": {
+    "@circle-fin/x402-batching": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "viem": "^2.0.0",
+    "vitest": "^3.0.0"
+  }
+}
