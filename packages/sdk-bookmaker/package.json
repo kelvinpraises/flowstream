@@ -20,8 +20,7 @@
   "dependencies": {
     "@flowstream/types": "workspace:*",
     "viem": "^2.0.0",
-    "ws": "^8.18.0",
-    "@circle-fin/developer-controlled-wallets": "^6.0.0"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",

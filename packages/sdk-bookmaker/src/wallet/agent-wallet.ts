@@ -1,241 +1,92 @@
 /**
- * CircleAgentWallet — programmatic wallet for autonomous FlowStream agents.
+ * AgentWallet — simple EOA wallet for autonomous FlowStream agents.
  *
- * Uses @circle-fin/developer-controlled-wallets to create and manage
- * MPC-secured wallets server-side. No CLI, no browser, no passkeys.
+ * Uses viem to sign transactions on Arc testnet. Each agent holds
+ * a private key and transacts directly — no external dependencies.
  *
- * Setup (one-time in Circle Console):
- *   1. Get API key from console.circle.com (Web3 Services)
- *   2. Generate entity secret (32 bytes) and register its ciphertext
- *   3. Pass both to CircleAgentWallet constructor
- *
- * How it works:
- *   - Circle holds one MPC key shard, entity secret secures the other
- *   - Wallets are created programmatically via SDK (up to 200 per call)
- *   - Transactions are signed server-side through Circle's infrastructure
- *   - Gas can be sponsored via Gas Station (gasless for agents)
- *   - Wallets auto-provision on all supported chains on creation
+ * For the bookmaker agent lifecycle:
+ *   1. Agent starts with a private key (from env)
+ *   2. Registers identity via ERC-8004 AgentRegistry
+ *   3. Approves USDC spending for the Vault contract
+ *   4. Creates vaults, streams USDC, monitors outcomes
+ *   5. Reputation updates automatically on vault finalization
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  type PublicClient,
+  type WalletClient,
+  type Account,
+  type Chain,
+  type Transport,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
-export interface CircleAgentWalletConfig {
-  /** Circle API key from Console (Web3 Services) */
-  apiKey: string;
-  /** 32-byte entity secret (hex string) — secures MPC key shard */
-  entitySecret: string;
-  /** Blockchain identifier (default: "ARC-TESTNET") */
-  blockchain?: string;
-  /** Existing wallet ID (skip creation if provided) */
-  walletId?: string;
+export interface AgentWalletConfig {
+  /** Agent's private key (0x-prefixed hex) */
+  privateKey: `0x${string}`;
+  /** RPC URL (default: Arc testnet) */
+  rpcUrl?: string;
+  /** Chain definition */
+  chain: Chain;
 }
 
-export interface CircleWalletInfo {
-  id: string;
-  address: string;
-  blockchain: string;
-  accountType: string;
-  state: string;
-}
+export class AgentWallet {
+  readonly account: Account;
+  readonly publicClient: PublicClient;
+  readonly walletClient: WalletClient<Transport, Chain, Account>;
 
-export interface CircleTxResult {
-  id: string;
-  state: string;
-  txHash?: string;
-}
+  constructor(config: AgentWalletConfig) {
+    const rpcUrl = config.rpcUrl ?? "https://testnet-rpc.arc.network";
 
-// ---------------------------------------------------------------------------
-// CircleAgentWallet
-// ---------------------------------------------------------------------------
+    this.account = privateKeyToAccount(config.privateKey);
 
-export class CircleAgentWallet {
-  private client: any = null;
-  private readonly config: CircleAgentWalletConfig;
-  private readonly blockchain: string;
-  private _walletId: string | null;
-  private _address: `0x${string}` | null = null;
+    this.publicClient = createPublicClient({
+      chain: config.chain,
+      transport: http(rpcUrl),
+    });
 
-  constructor(config: CircleAgentWalletConfig) {
-    this.config = config;
-    this.blockchain = config.blockchain ?? "ARC-TESTNET";
-    this._walletId = config.walletId ?? null;
+    this.walletClient = createWalletClient({
+      account: this.account,
+      chain: config.chain,
+      transport: http(rpcUrl),
+    });
   }
 
   get address(): `0x${string}` {
-    if (!this._address) {
-      throw new Error("Wallet not initialized. Call init() first.");
-    }
-    return this._address;
-  }
-
-  get walletId(): string {
-    if (!this._walletId) {
-      throw new Error("Wallet not initialized. Call init() first.");
-    }
-    return this._walletId;
+    return this.account.address;
   }
 
   /**
-   * Initialize: connect to Circle SDK and create or load wallet.
+   * Execute a contract write and wait for receipt.
    */
-  async init(): Promise<void> {
-    const mod = await import("@circle-fin/developer-controlled-wallets");
-    this.client = mod.initiateDeveloperControlledWalletsClient({
-      apiKey: this.config.apiKey,
-      entitySecret: this.config.entitySecret,
+  async execute(params: {
+    address: `0x${string}`;
+    abi: readonly any[];
+    functionName: string;
+    args?: readonly any[];
+  }): Promise<`0x${string}`> {
+    const txHash = await this.walletClient.writeContract({
+      ...params,
+      account: this.account,
+      chain: this.walletClient.chain!,
     });
 
-    if (this._walletId) {
-      // Load existing wallet
-      const resp = await this.client.getWallet({ id: this._walletId });
-      this._address = resp.data.wallet.address as `0x${string}`;
-    } else {
-      // Create new wallet set + wallet
-      const walletSet = await this.client.createWalletSet({
-        name: `FlowStream Agent ${Date.now()}`,
-      });
-
-      const wallets = await this.client.createWallets({
-        walletSetId: walletSet.data.walletSet.id,
-        blockchains: [this.blockchain],
-        count: 1,
-        accountType: "SCA", // Smart Contract Account for gasless
-      });
-
-      const wallet = wallets.data.wallets[0];
-      this._walletId = wallet.id;
-      this._address = wallet.address as `0x${string}`;
-    }
+    await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    return txHash;
   }
 
   /**
-   * Execute a smart contract function (gas-sponsored by Circle).
+   * Read from a contract.
    */
-  async executeContract(
-    contractAddress: `0x${string}`,
-    abiFunctionSignature: string,
-    abiParameters: string[],
-  ): Promise<CircleTxResult> {
-    this.requireInit();
-
-    const resp = await this.client.createContractExecutionTransaction({
-      walletId: this._walletId,
-      contractAddress,
-      abiFunctionSignature,
-      abiParameters,
-      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-    });
-
-    return {
-      id: resp.data.transaction.id,
-      state: resp.data.transaction.state,
-      txHash: resp.data.transaction.txHash,
-    };
-  }
-
-  /**
-   * Transfer USDC to another address.
-   */
-  async transfer(
-    toAddress: `0x${string}`,
-    amount: string,
-    tokenAddress?: `0x${string}`,
-  ): Promise<CircleTxResult> {
-    this.requireInit();
-
-    const resp = await this.client.createTransferTransaction({
-      walletId: this._walletId,
-      destinationAddress: toAddress,
-      amounts: [amount],
-      tokenAddress,
-      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-    });
-
-    return {
-      id: resp.data.transaction.id,
-      state: resp.data.transaction.state,
-      txHash: resp.data.transaction.txHash,
-    };
-  }
-
-  /**
-   * Get wallet balances.
-   */
-  async getBalances(): Promise<{ token: string; amount: string }[]> {
-    this.requireInit();
-
-    const resp = await this.client.listWalletBallance({
-      id: this._walletId,
-    });
-
-    return resp.data.tokenBalances ?? [];
-  }
-
-  // ─── FlowStream convenience methods ───
-
-  /** Approve USDC spending for a contract */
-  async approveUSDC(
-    spender: `0x${string}`,
-    amount: bigint,
-    usdcAddress: `0x${string}`,
-  ): Promise<CircleTxResult> {
-    return this.executeContract(
-      usdcAddress,
-      "approve(address,uint256)",
-      [spender, amount.toString()],
-    );
-  }
-
-  /** Create a vault via the agent wallet */
-  async createVault(
-    vaultContract: `0x${string}`,
-    option: string,
-    optionType: number,
-    duration: bigint,
-    stake: bigint,
-    creatorSide: boolean,
-  ): Promise<CircleTxResult> {
-    return this.executeContract(
-      vaultContract,
-      "createVault(string,uint8,uint256,uint256,bool)",
-      [option, optionType.toString(), duration.toString(), stake.toString(), creatorSide.toString()],
-    );
-  }
-
-  /** Stream USDC into a vault side */
-  async streamToVault(
-    vaultContract: `0x${string}`,
-    vaultId: `0x${string}`,
-    yesSide: boolean,
-    amount: bigint,
-  ): Promise<CircleTxResult> {
-    return this.executeContract(
-      vaultContract,
-      "stream(bytes32,bool,uint256)",
-      [vaultId, yesSide.toString(), amount.toString()],
-    );
-  }
-
-  /** Register agent identity via ERC-8004 */
-  async registerAgent(
-    registryAddress: `0x${string}`,
-    name: string,
-    agentType: number,
-  ): Promise<CircleTxResult> {
-    return this.executeContract(
-      registryAddress,
-      "registerAgent(string,uint8)",
-      [name, agentType.toString()],
-    );
-  }
-
-  // ─── Internal ───
-
-  private requireInit(): void {
-    if (!this.client || !this._walletId) {
-      throw new Error("Wallet not initialized. Call init() first.");
-    }
+  async read(params: {
+    address: `0x${string}`;
+    abi: readonly any[];
+    functionName: string;
+    args?: readonly any[];
+  }): Promise<any> {
+    return this.publicClient.readContract(params);
   }
 }

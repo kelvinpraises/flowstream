@@ -15,6 +15,7 @@
 - [ ] **Deploy contracts to Arc testnet** — CREATE2 deployment via `deploy/main.ts`. Needs a funded deployer wallet with USDC on Arc testnet.
 - [x] **Wire deployed addresses into client via env** — `apps/client/.env` has placeholder addresses, `src/config/contracts.ts` provides shared config. All hooks fall back to mock when addresses are zero. After deployment, just update `.env`.
 - [ ] **Wire CLI agent-register bridge to contract** — `cli/bridges/agent-register.ts` is stubbed (logs mock JSON). Needs to actually call `AgentRegistry.registerAgent()` on-chain via the SDK.
+- [ ] **Test agent wallet end-to-end** — Verify `CircleAgentWallet` can: create wallet on Arc testnet, get USDC from faucet, approve USDC spend, call `registerAgent()`, call `createVault()`, call `stream()`. Needs Circle API key + entity secret from Console.
 
 ---
 
@@ -86,16 +87,14 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Arc Chain | Done | Contracts + SDKs target Arc testnet |
-| Agent Wallets | Done | CLI-based via `@circle-fin/cli` |
+| Arc Chain | Done | Contracts + SDKs target Arc testnet, USDC as gas |
 | Gateway Nanopayments | Done | `sdk-options` wraps `@circle-fin/x402-batching` for observation feed access |
 | ERC-8004 | Done | `AgentRegistry.sol` with full views + SDK leaderboard |
-| Modular Wallets | Done | Passkey auth + gasless in React client |
+| Modular Wallets | Done | Passkey auth + gasless in React client via `@circle-fin/modular-wallets-core` |
+| Paymaster (gasless) | Done | `paymaster: true` via Circle Modular Wallets for end users |
 | CCTP | Not started | Cross-chain USDC deposits, nice-to-have |
-| Paymaster (gasless) | Done | `paymaster: true` via Circle Modular Wallets |
 
-**Current: 6/7 implemented, 0/7 researched, 1/7 not started**
-**Target achieved: 6/7 (skipping CCTP)**
+**Current: 5/6 implemented, 1/6 not started (CCTP)**
 
 ---
 
