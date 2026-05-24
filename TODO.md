@@ -12,10 +12,9 @@
 - [x] **ObserverRegistry: add `getObserver()` + `getObserverList()`** — Matching views.
 - [x] **SDK ABI mismatch fixed** — `sdk-bookmaker/registry.ts` ABI now matches contract. Added `getLeaderboard()`.
 - [x] **SDK Vault ABI synced** — `creatorSideYes` added to abi.ts, reader.ts, types/vault.ts.
-- [ ] **Deploy contracts to Arc testnet** — CREATE2 deployment via `deploy/main.ts`. Needs a funded deployer wallet with USDC on Arc testnet.
-- [x] **Wire deployed addresses into client via env** — `apps/client/.env` has placeholder addresses, `src/config/contracts.ts` provides shared config. All hooks fall back to mock when addresses are zero. After deployment, just update `.env`.
+- [x] **Wire deployed addresses into client via env** — `app/.env` has placeholder addresses, `src/config/contracts.ts` provides shared config. All hooks fall back to mock when addresses are zero. After deployment, just update `.env`.
+- [ ] **Deploy contracts to Arc testnet** — CREATE2 deployment via `deploy/main.ts`. Needs a funded deployer wallet with USDC on Arc testnet. Scoped deployment (01-core, 02-wire) is ready and resumable.
 - [ ] **Wire CLI agent-register bridge to contract** — `cli/bridges/agent-register.ts` is stubbed (logs mock JSON). Needs to actually call `AgentRegistry.registerAgent()` on-chain via the SDK.
-- [ ] **Test agent wallet end-to-end** — Verify `CircleAgentWallet` can: create wallet on Arc testnet, get USDC from faucet, approve USDC spend, call `registerAgent()`, call `createVault()`, call `stream()`. Needs Circle API key + entity secret from Console.
 
 ---
 
@@ -26,7 +25,7 @@
 - [x] **Vault -> AgentRegistry reputation wired** — `finalize()` now correctly records win/loss based on creator's staked side.
 - [x] **Client: wire agents page to registry** — `agents.tsx` uses `useAgents()` hook that reads from `AgentRegistry` via viem when deployed, falls back to mock data.
 - [ ] **AgentRegistry: add agent metadata** — Currently only stores `name` and `agentType`. Consider adding: `description`, `avatarCid` (IPFS) for richer profiles.
-- [ ] **Unify identity systems** — Three separate registries (AgentRegistry, Steward.sol, ObserverRegistry.sol). Consider merging or cross-referencing. Low priority for hackathon.
+- [ ] **Unify identity systems** — Three separate registries (AgentRegistry, Steward.sol, ObserverRegistry.sol). Consider merging or cross-referencing. Low priority.
 
 ---
 
@@ -62,22 +61,63 @@
 ### Priority 3 — Discovery & Feed
 - [ ] **Protocol stats bar** — Wire `mockProtocolStats` to real data via env placeholder addresses.
 - [ ] **Play-by-play feed** — Merge observer WebSocket events + Arc contract events.
-- [ ] **Homepage stream discovery** — Build stream discovery API/indexer. Low priority for hackathon.
+- [ ] **Homepage stream discovery** — Build stream discovery API/indexer. Low priority.
 - [ ] **Lifetime vaults** — Query resolved vaults from Arc using event logs.
+
+---
+
+## End-to-End Testing
+
+These are the critical paths that need to be tested once contracts are deployed on Arc testnet. Each one should be verified working before submission.
+
+### Agent Lifecycle (CLI)
+- [ ] **Agent registration** — `flowstream agent register --name "TestBot" --type bookmaker --key 0x...` → verify tx on ArcScan, confirm `AgentRegistry.getAgent()` returns the agent.
+- [ ] **Agent wallet funding** — Fund agent EOA with USDC via faucet → verify `balanceOf()` returns correct amount.
+- [ ] **Agent USDC approval** — Agent approves Vault contract to spend USDC → verify `allowance()`.
+- [ ] **Agent creates vault** — Agent calls `createVault()` → verify vault appears in `listVaults()`, `vaultsCreated` incremented in AgentRegistry.
+- [ ] **Agent reputation update** — Resolve + finalize a vault → verify `getReputation()` reflects correct win/loss.
+
+### User Flow (React Client)
+- [ ] **Passkey wallet creation** — Click Connect → Create Wallet → enter username → passkey prompt → verify MSCA address appears in nav.
+- [ ] **Passkey login persistence** — Close browser, reopen → verify auto-login restores wallet without biometric re-prompt.
+- [ ] **USDC balance display** — After connecting, verify USDC balance reads from Arc testnet.
+- [ ] **Stream slider → on-chain tx** — Drag slider on a vault card → verify `sendUserOperation` fires, tx lands on Arc, vault pool updates.
+- [ ] **Vault state polling** — Open /stream/:id → verify vault cards update every 3s from chain reads.
+- [ ] **Agent leaderboard** — Open /agents → verify agents load from `AgentRegistry.getAgentList()` + `getAgent()` instead of mock data.
+
+### Observer Pipeline
+- [ ] **Observer start** — `flowstream observe --source mock` → verify WebSocket frames emitting on `ws://localhost:8765`.
+- [ ] **Client WebSocket** — Open /stream/:id while observer runs → verify scoreboard elapsed time updates, play-by-play feed populates.
+- [ ] **IPFS batch submission** — Observer runs for 30s+ → verify IPFS CID is submitted to `ObserverRegistry.submitBatch()`.
+
+### Steward Governance
+- [ ] **Steward registration** — Register a steward agent → verify in `Steward.sol`.
+- [ ] **Proposal submission** — Steward proposes a boost/slash → verify proposal appears, challenge window starts.
+- [ ] **Challenge + finalize** — Let challenge window pass → finalize → verify `successfulProposals` incremented.
+
+### Gateway Nanopayments
+- [ ] **Deposit USDC to Gateway** — Call `depositToGateway("5")` → verify on-chain deposit tx.
+- [ ] **Pay for observation feed** — Call `nanopay(url)` on an x402-protected endpoint → verify 200 response with data.
+- [ ] **Check Gateway balance** — Call `getNanopayBalances()` → verify wallet + gateway balances returned.
+
+### Cross-Component
+- [ ] **Full vault lifecycle** — Create vault (agent) → stream YES (user A) → stream NO (user B) → hot period triggers → resolve → finalize → withdraw → verify payouts + FLOW minting + reputation update.
+- [ ] **Mock-to-live switch** — Update `.env` with deployed contract addresses → restart app → verify all hooks read from chain instead of mock data.
 
 ---
 
 ## File Moves & Cleanup
 
-- [x] **Move client** — `drafts/client/app/` -> `apps/client/`.
+- [x] **Move client** — now at `app/`.
 - [x] **Move skills** — `drafts/skills/` -> `skills/`.
 - [ ] **Clean drafts/** — Remove stale copies from `drafts/` after confirming everything works from final locations.
+- [ ] **Remove __pycache__** — `cli/src/flowstream_cli/__pycache__/` and `cli/src/flowstream_cli/commands/__pycache__/` got committed. Remove in a cleanup commit.
 
 ---
 
 ## Submission
 
-- [ ] **Clean git commit** — All files staged, zero commits exist. Need proper initial commit.
+- [x] **Clean git commit** — 6 sectional commits done.
 - [ ] **Record 3-min demo video** — Show: live stream, vault creation, streaming, hot period, resolution, $FLOW staking, agent leaderboard.
 - [ ] **Hackathon submission** — GitHub repo (public) + demo video + submission form.
 
