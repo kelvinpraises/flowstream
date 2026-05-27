@@ -1,47 +1,21 @@
 /**
- * @flowstream/sdk-stats — The Observation Layer
- *
- * Content-agnostic observation SDK for FlowStream.
- * Any live video stream becomes an observation feed
- * through the ContentAdapter pattern.
- *
- * Usage:
- *   import { Observer, MockAdapter } from "@flowstream/sdk-stats";
- *
- *   const observer = new Observer({
- *     adapter: new MockAdapter(),
- *     port: 8765,
- *   });
- *   await observer.start();
+ * @flowstream/sdk-stats — video in, processed video out.
+ * Content adapters (e.g. football) hook the middle; CLI is a thin registry wrapper.
  */
 
-// Main client class
-export { Observer } from "./client.js";
+export { Orchestrator } from "./orchestrator.js";
+export type { OrchestratorOptions } from "./orchestrator.js";
 
-// Types
-export type { ObserverOptions, WsClientOptions } from "./types.js";
+export { WebCapture } from "./acquire/web-capture.js";
+export { FileSource } from "./acquire/file.js";
+export type { FrameSource } from "./acquire/source.js";
 
-// Errors
+export { FootballAdapter } from "./content/football/adapter.js";
+export { FootballRenderer } from "./content/football/renderer.js";
+export type { ContentAdapter, VisualRenderer } from "./content/adapter.js";
+
+export { VideoFileOutput } from "./output/video-file.js";
+export { JsonFileOutput } from "./output/json-file.js";
+export type { Output } from "./output/output.js";
+
 export { ObserverError, AdapterError } from "./errors.js";
-
-// Adapters
-export { MockAdapter } from "./adapters/mock.js";
-export { FootballAdapter } from "./adapters/football.js";
-export type { ContentAdapter, VisualRenderer } from "./adapters/adapter.js";
-
-// Transport
-export { FrameServer } from "./transport/ws-server.js";
-export { FrameClient } from "./transport/ws-client.js";
-export type { FrameCallback, ConnectionCallback } from "./transport/ws-client.js";
-
-// Pipeline
-export { FrameEmitter } from "./pipeline/frame-emitter.js";
-export { EventDetector } from "./pipeline/event-detector.js";
-export type { FrameListener } from "./pipeline/frame-emitter.js";
-export type { AggregateState } from "./pipeline/event-detector.js";
-
-// Storage
-export { IPFSBatcher } from "./storage/ipfs-batcher.js";
-
-// Renderer
-export { FootballRenderer } from "./renderer/football-renderer.js";

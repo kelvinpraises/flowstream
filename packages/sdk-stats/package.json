@@ -10,19 +10,26 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "shx mkdir -p dist/content/football && shx cp -r src/content/football/cv dist/content/football/",
     "dev": "tsc --watch",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude test/e2e.test.ts",
+    "test:e2e": "vitest run test/e2e.test.ts --testTimeout=0",
+    "test:watch": "vitest --exclude test/e2e.test.ts"
   },
   "dependencies": {
     "@flowstream/types": "workspace:*",
-    "ws": "^8.18.0"
+    "gl": "^8.1.6",
+    "puppeteer": "^25.0.4",
+    "three": "^0.124.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.0",
+    "@types/gl": "^6.0.5",
+    "shx": "^0.4.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
