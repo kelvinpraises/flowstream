@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+venv/
+.venv/
 
 # Build outputs
 dist/
@@ -32,3 +34,9 @@ tmp/
 .mastra/
 context/
 drafts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
