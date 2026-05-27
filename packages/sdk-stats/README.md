@@ -6,12 +6,27 @@ Football runs a CV subprocess under `src/content/football/cv/` — not a separat
 
 ## Setup
 
+**Git LFS** — football CV weights (`*.pt`) are stored in Git LFS. Install once:
+
+```bash
+brew install git-lfs   # or see https://git-lfs.github.com
+git lfs install
+```
+
+After clone or pull, fetch the weights:
+
+```bash
+git lfs pull
+```
+
+Without LFS you get tiny pointer files (~134 bytes) instead of the models.
+
 ```bash
 cd packages/sdk-stats
 npm install
 python3 -m venv venv
 source venv/bin/activate
-pip install -r src/content/football/cv/requirements.txt
+pip install -r requirements.txt
 npm run build
 ```
 
